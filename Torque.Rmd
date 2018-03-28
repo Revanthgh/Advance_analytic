@@ -1,0 +1,165 @@
+---
+title: "Advanced Analytics Assignment 1 - ANOVA"
+author: "Sanjeev Kumar Mishra, Mohammed Hussain, Revanth Guthala, Rohit Polavarapu "
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+Reading the Spyder_Strength dataset
+```{r}
+given_data<-read.table("http://mgmt.iisc.ac.in/CM/MG221/Data_Files/spyder_strength.data", header = TRUE)
+```
+view(given_data)
+
+
+We are initializing a function here that will perform 4 different Normality Tests on the given input and help us determine whether the given input follows Normality or not.
+```{r}
+normtest<-function(x)
+{
+  s<-shapiro.test(x)
+  ad<-ad.test(x)
+  cvm<-cvm.test(x)
+  ll<-lillie.test(x)
+  sf<-sf.test(x)
+  df<-data.frame(Method=c(s$method, ad$method, cvm$method, ll$method, sf$method),
+                 P.Value=c(s$p.value, ad$p.value, cvm$p.value, ll$p.value, sf$p.value))
+  df
+}
+```
+
+### We convert the numerical values into categorical values and distribute the data into different data types
+
+```{r}
+y<-given_data$Torque
+hole_type <- as.factor(given_data$Hole)
+assem_type <- as.factor(given_data$Assembly)
+hub_type <- as.factor(given_data$Hub)
+#torque_reqd <- as.factor(given_data$Torque)
+treatment<-NULL
+for(i in 1:64)
+{
+  if ((hole_type[i]==-1) & (assem_type[i]==-1) & (hub_type[i]==-1)) treatment[i]<-"combi_111"
+  if ((hole_type[i]==-1) & (assem_type[i]==-1) & (hub_type[i]==1)) treatment[i]<-"combi_112"
+  if ((hole_type[i]==-1) & (assem_type[i]==1) & (hub_type[i]==-1)) treatment[i]<-"combi_121"
+  if ((hole_type[i]==-1) & (assem_type[i]==1) & (hub_type[i]==1)) treatment[i]<-"combi_122"
+  if ((hole_type[i]==1) & (assem_type[i]==-1) & (hub_type[i]==-1)) treatment[i]<-"combi_211"
+  if ((hole_type[i]==1) & (assem_type[i]==-1) & (hub_type[i]==1)) treatment[i]<-"combi_212"
+  if ((hole_type[i]==1) & (assem_type[i]==1) & (hub_type[i]==-1)) treatment[i]<-"combi_221"
+  if ((hole_type[i]==1) & (assem_type[i]==1) & (hub_type[i]==1)) treatment[i]<-"combi_222"
+}
+treatment<-as.factor(treatment)
+```
+
+###Creating a Boxplot to visualize the values of torque for various treatments.
+```{r}
+
+boxplot(y~treatment,font.main=1,xlab="Treatment", ylab="Torque Required(foot
+pounds)", main = "Torque values for different Treatment Group", cex.axis =
+0.50)
+```
+It can be observed from the boxplot that various combinations of Hole type, Assembly Type and Hub type require significantly different ranges of torque for destructive testing. 
+
+
+###One Way ANOVA
+```{r}
+anova(aov(y~treatment))
+```
+We test for a null hypothesis that the mean values for torque are equal accross all the groups.
+The high F value obtained from the One Way ANOVA test, signifies variation in the Mean Torques for various treatments.
+
+
+###Three Factor ANOVA
+```{r}
+model=aov(y~hole_type*assem_type*hub_type)
+anova(model)
+```
+The F-values and the corresponding p-values for each of the above term indicates the following :
+
+1. There are significant Main Effects of the 3 Factors (Hub, Assembly, Hole) on mean Torque values.
+
+2. There are significant 2-way Interactions between any 2 of the given Factors, barring the interactions between assembly type and hub type, between which the interactions are mild(p-value = 0.04).
+
+3. There is a significant 3-way Interaction Effect in the Model between Hub, Assembly, and Hole.
+
+
+###Residual Analysis
+```{r}
+res<-resid(model) 
+plot(model,which=c(1,2))
+```
+It can be observed from the plot of residuals that, they are normally distributed. To check for this assumption, we perform the normality test. The normtest function is already defined above.
+
+
+###Normality Test for Residuals
+```{r}
+library(nortest)
+normtest(res)
+```
+The p-values indicate a normal distribution for the residuals.
+
+
+###Homogenity Test for Residuals
+```{r}
+bartlett.test(res~hole_type)
+# Bartlett's K-squared = 2.8068, df = 1, p-value = 0.09386
+
+bartlett.test(res~assem_type)
+#Bartlett's K-squared = 6.121, df = 1, p-value = 0.01336
+
+bartlett.test(res~hub_type)
+#Bartlett's K-squared = 6.121, df = 1, p-value = 0.01336
+```
+The p-values thus obtained suggest that, the variance for residuals across various factors combinations are equal i.e. the residuals are homoskedastic.
+
+We can visualise the above results for individual, two way interaction and three way interaction as follows.
+
+###Individual Residual Analysis
+```{r}
+plot(as.numeric(hole_type),res,xlab="Hole",ylab="Residuals")
+plot(as.numeric(assem_type),res,xlab="Assembly",ylab="Residuals")
+plot(as.numeric(hub_type),res,xlab="Hub",ylab="Residuals")
+```
+
+###Residual Analysis for Two way Interaction
+```{r}
+plot(as.numeric(hole_type:assem_type),res,xlab="Hole:Assembly",ylab="Residuals")
+plot(as.numeric(hole_type:hub_type),res,xlab="Hole:Hub",ylab="Residuals")
+plot(as.numeric(assem_type:hub_type),res,xlab="Assembly:Hub",ylab="Residuals")
+```
+
+###Residual Analysis for Three way Interaction
+```{r}
+plot(as.numeric(hole_type:assem_type:hub_type),res,xlab="Hole:Assembly:Hub",ylab="Residuals")
+```
+
+###Interaction Plots
+```{r}
+interaction.plot(hole_type,assem_type,y,main="Hole*Assembly") 
+interaction.plot(hub_type,assem_type,y,main="Hub*Assembly") 
+interaction.plot(hole_type,hub_type,y,main="Hole*Hub") 
+```
+
+The Tukey's Honest Significant Difference test, is a post-hoc test based on the studentized range distribution. An ANOVA test can tell you if your results are significant overall, but it won't tell you exactly where those differences lie. After you have run an ANOVA and found significant results, then you can run Tukey's HSD to find out which specific groups's means (compared with each other) are different. The test compares all possible pairs of means.
+
+
+###Tukey's HSD Test
+```{r}
+TukeyHSD(model)
+```
+It can be observed that the p-values in most of the case are low, suggesting a significant effect of different combinations on the torque required for destructive testing. 
+
+> CONCLUSION : There is significant difference in the torque value for various combinations of the given factors of hub type, assembly type and hole type. From plotting and comparing the torque required for various groups, a combination of ------------- seem to be the strongest.
+
+***
+
+> SUMMARY :
+> Regardless of which Passenger Class a person was travelling in, Gender was not independent of the Survival Probability for a passenger class aboard the Titanic.
+
+***
